@@ -111,7 +111,8 @@ class Animator extends HTMLElement {
       [{ transform: "translateY(-100%)" }, { transform: "translateY(0%)" }],
       options
     ).addEventListener("finish", () => {
-      this.dispatchEvent(new Event("finish"));
+      this.removeChild(from);
+      this.dispatchEvent(new Event("elmAnimatorFinish"));
     });
   }
 
@@ -138,7 +139,7 @@ class Animator extends HTMLElement {
   }
 }
 
-document.addEventListener("DOMContentLoaded", function(event) {
+document.addEventListener("DOMContentLoaded", function() {
   customElements.define("elm-animator", Animator);
   customElements.define("elm-animator-from", AnimatorFrom);
 });

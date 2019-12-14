@@ -21,6 +21,7 @@ main =
 
 type alias Model =
     { notificationState : Animator.State Bool
+    , kind : Bool -> Animator.Kind
     }
 
 
@@ -33,13 +34,20 @@ type Msg
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { notificationState = Animator.initialState False
+      , kind =
+            \showNotification ->
+                if showNotification then
+                    Animator.SlideInFromTop
+
+                else
+                    Animator.Fade
       }
     , Cmd.none
     )
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.none
 
 
@@ -83,6 +91,7 @@ view model =
                 [ Animator.animator
                     [ viewNotification <| Animator.toState <| model.notificationState ]
                     model.notificationState
+                    |> Animator.withKind model.kind
                     |> Animator.withStateChangeHandler NotificationStateChange
                     |> Animator.toHtml
                 ]
@@ -90,19 +99,6 @@ view model =
         ]
             |> List.map H.toUnstyled
     }
-
-
-animationKindForNotification : { from : Bool, to : Bool } -> Animator.Kind
-animationKindForNotification { from, to } =
-    case ( from, to ) of
-        ( False, True ) ->
-            Animator.Fade
-
-        ( True, False ) ->
-            Animator.Fade
-
-        _ ->
-            Animator.NoAnimation
 
 
 viewNotification : Bool -> H.Html Msg

@@ -6,6 +6,7 @@ module Animator exposing
     , toHtml
     , toState
     , transitioning
+    , withKind
     , withStateChangeHandler
     )
 
@@ -21,7 +22,7 @@ type Animator state msg
 
 
 type alias Data state msg =
-    { kind : Kind
+    { kind : state -> Kind
     , content : List (H.Html msg)
     , state : State state
     , stateChangeHandler : Maybe (State state -> msg)
@@ -78,7 +79,7 @@ animator :
     -> Animator state msg
 animator content state =
     Animator
-        { kind = Fade
+        { kind = always Fade
         , content = content
         , state = state
         , stateChangeHandler = Nothing
@@ -101,7 +102,7 @@ toHtml (Animator data) =
         [ HA.css
             [ overflow hidden
             ]
-        , HA.attribute "elm-animator-kind" (kindToString data.kind)
+        , HA.attribute "elm-animator-kind" (kindToString <| data.kind <| toState <| data.state)
         , HA.attribute "elm-animator-state" (stateToString data.state)
         , HE.on "elmAnimatorFinish"
             (data.stateChangeHandler
@@ -118,3 +119,8 @@ toHtml (Animator data) =
 withStateChangeHandler : (State state -> msg) -> Animator state msg -> Animator state msg
 withStateChangeHandler handler (Animator data) =
     Animator { data | stateChangeHandler = Just handler }
+
+
+withKind : (state -> Kind) -> Animator state msg -> Animator state msg
+withKind kind (Animator data) =
+    Animator { data | kind = kind }
