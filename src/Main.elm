@@ -20,27 +20,29 @@ main =
 
 
 type alias Model =
-    { notificationState : Animator.State Bool
-    , kind : Bool -> Animator.Kind
+    { showNotification : Bool
+    , page : Page
     }
+
+
+type Page
+    = PageOne
+    | PageTwo
+    | PageThree
 
 
 type Msg
     = UserClickTestButton
     | UserClickCloseNotificationButton
-    | NotificationStateChange (Animator.State Bool)
+    | UserClickPageOneButton
+    | UserClickPageTwoButton
+    | UserClickPageThreeButton
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { notificationState = Animator.initialState False
-      , kind =
-            \showNotification ->
-                if showNotification then
-                    Animator.SlideInFromTop
-
-                else
-                    Animator.Fade
+    ( { showNotification = False
+      , page = PageOne
       }
     , Cmd.none
     )
@@ -49,6 +51,14 @@ init _ =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
+
+
+buttonStyle : List Style
+buttonStyle =
+    [ padding2 (em 1) (em 2)
+    , fontWeight bold
+    , borderRadius (px 5)
+    ]
 
 
 view : Model -> Browser.Document Msg
@@ -63,21 +73,67 @@ view model =
                 , height (vh 100)
                 , displayFlex
                 , alignItems center
-                , justifyContent center
+                , justifyContent flexEnd
                 , flexDirection column
                 , position relative
                 ]
             ]
-            [ H.button
-                [ HA.type_ "button"
-                , HE.onClick UserClickTestButton
-                , HA.css
-                    [ padding2 (em 1) (em 2)
-                    , fontWeight bold
-                    , borderRadius (px 5)
+            [ Animator.animator
+                [ case model.page of
+                    PageOne ->
+                        viewOne
+
+                    PageTwo ->
+                        viewTwo
+
+                    PageThree ->
+                        viewThree
+                ]
+                |> Animator.withKind
+                    (case model.page of
+                        PageOne ->
+                            Animator.SlideFromLeft
+
+                        PageTwo ->
+                            Animator.SlideFromRight
+
+                        PageThree ->
+                            Animator.SlideFromTop
+                    )
+                |> Animator.toHtml
+            , H.div
+                [ HA.css
+                    [ displayFlex
+                    , alignItems spaceBetween
+                    , paddingTop (em 1)
+                    , paddingBottom (em 1)
                     ]
                 ]
-                [ H.text "Test" ]
+                [ H.button
+                    [ HA.type_ "button"
+                    , HA.css (marginRight (em 1) :: buttonStyle)
+                    , HE.onClick UserClickPageOneButton
+                    ]
+                    [ H.text "1" ]
+                , H.button
+                    [ HA.type_ "button"
+                    , HA.css (marginRight (em 1) :: buttonStyle)
+                    , HE.onClick UserClickPageTwoButton
+                    ]
+                    [ H.text "2" ]
+                , H.button
+                    [ HA.type_ "button"
+                    , HA.css (marginRight (em 1) :: buttonStyle)
+                    , HE.onClick UserClickPageThreeButton
+                    ]
+                    [ H.text "3" ]
+                , H.button
+                    [ HA.type_ "button"
+                    , HE.onClick UserClickTestButton
+                    , HA.css buttonStyle
+                    ]
+                    [ H.text "Show Notification" ]
+                ]
             , H.p
                 [ HA.css
                     [ displayFlex
@@ -89,16 +145,65 @@ view model =
                     ]
                 ]
                 [ Animator.animator
-                    [ viewNotification <| Animator.toState <| model.notificationState ]
-                    model.notificationState
-                    |> Animator.withKind model.kind
-                    |> Animator.withStateChangeHandler NotificationStateChange
+                    [ viewNotification model.showNotification ]
+                    |> Animator.withKind
+                        (if model.showNotification then
+                            Animator.SlideFromTop
+
+                         else
+                            Animator.SlideFromBottom
+                        )
                     |> Animator.toHtml
                 ]
             ]
         ]
             |> List.map H.toUnstyled
     }
+
+
+viewOne : H.Html msg
+viewOne =
+    H.node "view-one"
+        [ HA.css
+            [ width (pct 100)
+            , height (pct 100)
+            , displayFlex
+            , justifyContent center
+            , alignItems center
+            , backgroundColor (hex "#FFB7B2")
+            ]
+        ]
+        [ H.h1 [] [ H.text "One" ] ]
+
+
+viewTwo : H.Html msg
+viewTwo =
+    H.node "view-two"
+        [ HA.css
+            [ width (pct 100)
+            , height (pct 100)
+            , displayFlex
+            , justifyContent center
+            , alignItems center
+            , backgroundColor (hex "#E2F0CB")
+            ]
+        ]
+        [ H.h1 [] [ H.text "Two" ] ]
+
+
+viewThree : H.Html msg
+viewThree =
+    H.node "view-three"
+        [ HA.css
+            [ width (pct 100)
+            , height (pct 100)
+            , displayFlex
+            , justifyContent center
+            , alignItems center
+            , backgroundColor (hex "#C7CEEA")
+            ]
+        ]
+        [ H.h1 [] [ H.text "Three" ] ]
 
 
 viewNotification : Bool -> H.Html Msg
@@ -111,7 +216,8 @@ viewNotification flag =
                 , fontFamily sansSerif
                 , padding (em 1)
                 , borderRadius (px 5)
-                , margin4 (em 2) (em 1) (em 1) (em 1)
+                , margin4 (em 2) auto (em 1) auto
+                , maxWidth (px 500)
                 , property "box-shadow"
                     "2px 2px 5px rgba(0,0,0,0.25)"
                 , boxSizing contentBox
@@ -128,7 +234,7 @@ viewNotification flag =
                     [ border zero
                     , backgroundColor (rgba 0 0 0 0.25)
                     , fontWeight bold
-                    , padding2 (px 5) (px 10)
+                    , padding2 (px 15) (px 20)
                     ]
                 , HE.onClick UserClickCloseNotificationButton
                 ]
@@ -143,20 +249,20 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UserClickTestButton ->
-            ( { model
-                | notificationState = model.notificationState |> Animator.transitioning True
-              }
+            ( { model | showNotification = True }
             , Cmd.none
             )
 
         UserClickCloseNotificationButton ->
-            ( { model
-                | notificationState = model.notificationState |> Animator.transitioning False
-              }
+            ( { model | showNotification = False }
             , Cmd.none
             )
 
-        NotificationStateChange notificationState ->
-            ( { model | notificationState = notificationState }
-            , Cmd.none
-            )
+        UserClickPageOneButton ->
+            ( { model | page = PageOne }, Cmd.none )
+
+        UserClickPageTwoButton ->
+            ( { model | page = PageTwo }, Cmd.none )
+
+        UserClickPageThreeButton ->
+            ( { model | page = PageThree }, Cmd.none )

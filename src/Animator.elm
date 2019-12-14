@@ -1,51 +1,32 @@
 module Animator exposing
     ( Kind(..)
-    , State
     , animator
-    , initialState
+    , onFinish
     , toHtml
-    , toState
-    , transitioning
     , withKind
-    , withStateChangeHandler
     )
 
 import Css exposing (..)
 import Html.Styled as H
 import Html.Styled.Attributes as HA
-import Html.Styled.Events as HE
-import Json.Decode as JD
 
 
-type Animator state msg
-    = Animator (Data state msg)
+type Animator msg
+    = Animator (Data msg)
 
 
-type alias Data state msg =
-    { kind : state -> Kind
+type alias Data msg =
+    { kind : Kind
     , content : List (H.Html msg)
-    , state : State state
-    , stateChangeHandler : Maybe (State state -> msg)
+    , onFinish : Maybe msg
     }
 
 
-type State state
-    = Idle state
-    | Transitioning state
-
-
-initialState : state -> State state
-initialState state =
-    Idle state
-
-
-transitioning : state -> State state -> State state
-transitioning state _ =
-    Transitioning state
-
-
 type Kind
-    = SlideInFromTop
+    = SlideFromTop
+    | SlideFromLeft
+    | SlideFromBottom
+    | SlideFromRight
     | Fade
     | NoAnimation
 
@@ -53,8 +34,17 @@ type Kind
 kindToString : Kind -> String
 kindToString kind =
     case kind of
-        SlideInFromTop ->
-            "SlideInFromTop"
+        SlideFromLeft ->
+            "SlideFromLeft"
+
+        SlideFromRight ->
+            "SlideFromRight"
+
+        SlideFromBottom ->
+            "SlideFromBottom"
+
+        SlideFromTop ->
+            "SlideFromTop"
 
         Fade ->
             "Fade"
@@ -63,64 +53,40 @@ kindToString kind =
             "NoAnimation"
 
 
-stateToString : State state -> String
-stateToString state =
-    case state of
-        Idle _ ->
-            "idle"
-
-        Transitioning _ ->
-            "transitioning"
-
-
 animator :
     List (H.Html msg)
-    -> State state
-    -> Animator state msg
-animator content state =
+    -> Animator msg
+animator content =
     Animator
-        { kind = always Fade
+        { kind = Fade
         , content = content
-        , state = state
-        , stateChangeHandler = Nothing
+        , onFinish = Nothing
         }
 
 
-toState : State state -> state
-toState state =
-    case state of
-        Idle s ->
-            s
-
-        Transitioning s ->
-            s
-
-
-toHtml : Animator state msg -> H.Html msg
+toHtml : Animator msg -> H.Html msg
 toHtml (Animator data) =
     H.node "elm-animator"
         [ HA.css
             [ overflow hidden
+            , width (pct 100)
+            , height (pct 100)
+            , property "display" "grid"
+            , property "grid-template-areas" "\"content\""
             ]
-        , HA.attribute "elm-animator-kind" (kindToString <| data.kind <| toState <| data.state)
-        , HA.attribute "elm-animator-state" (stateToString data.state)
-        , HE.on "elmAnimatorFinish"
-            (data.stateChangeHandler
-                |> Maybe.map (\stateChangeHandler -> JD.succeed (stateChangeHandler (Idle <| toState data.state)))
-                |> Maybe.withDefault (JD.fail "")
-            )
+        , HA.attribute "elm-animator-kind" (kindToString <| data.kind)
         ]
-        [ H.node "elm-animator-content" [] data.content
-            |> H.toUnstyled
-            |> H.fromUnstyled
+        [ H.node "elm-animator-content"
+            []
+            (List.map (H.toUnstyled >> H.fromUnstyled) data.content)
         ]
 
 
-withStateChangeHandler : (State state -> msg) -> Animator state msg -> Animator state msg
-withStateChangeHandler handler (Animator data) =
-    Animator { data | stateChangeHandler = Just handler }
-
-
-withKind : (state -> Kind) -> Animator state msg -> Animator state msg
+withKind : Kind -> Animator msg -> Animator msg
 withKind kind (Animator data) =
     Animator { data | kind = kind }
+
+
+onFinish : msg -> Animator msg -> Animator msg
+onFinish msg (Animator data) =
+    Animator { data | onFinish = Just msg }

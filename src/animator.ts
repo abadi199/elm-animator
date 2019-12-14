@@ -1,87 +1,69 @@
-type AnimationState = Idle | Transitioning;
-
-interface Idle {
-  kind: "idle";
-  content: HTMLElement;
-}
-interface Transitioning {
-  kind: "transitioning";
-  content: HTMLElement;
-  to: HTMLElement;
-}
-
+type Kind =
+  | "SlideFromLeft"
+  | "SlideFromTop"
+  | "SlideFromRight"
+  | "SlideFromBottom"
+  | "Fade";
 class AnimatorFrom extends HTMLElement {
   constructor() {
     super();
   }
 }
 
+const observerConfig = { attributes: true, childList: true, subtree: true };
 class Animator extends HTMLElement {
-  animationState: AnimationState;
+  observer: MutationObserver;
 
   constructor() {
     super();
+    this.observer = new MutationObserver(this.mutationHandler.bind(this));
   }
 
   connectedCallback() {
-    this.updateState(this.getAttribute("elm-animator-state"));
+    this.observer.observe(this, observerConfig);
   }
 
-  static get observedAttributes() {
-    return ["elm-animator-state"];
+  mutationHandler(mutationList: MutationRecord[], observer: MutationObserver) {
+    console.log("mutationHandler");
+    const removedNodes = mutationList.flatMap(element => {
+      return Array.from(element.removedNodes);
+    });
+    console.log(removedNodes);
+    observer.disconnect();
+    this.transitioning(removedNodes);
   }
 
   getContent(): HTMLElement {
     return this.getElementsByTagName("elm-animator-content")[0] as HTMLElement;
   }
 
-  updateState(state: String) {
-    switch (state) {
-      case "transitioning":
-        const to = this.getContent();
-        this.animationState = {
-          ...this.animationState,
-          kind: "transitioning",
-          to
-        };
-        break;
-      case "idle":
-      default:
-        const content = this.getContent().cloneNode(true) as HTMLElement;
-        this.animationState = { kind: "idle", content };
-        break;
-    }
-  }
-
-  attributeChangedCallback(name: string, oldValue: string, newValue: string) {
-    switch (name) {
-      case "elm-animator-state":
-        this.updateState(newValue);
-        if (this.animationState.kind == "transitioning") {
-          this.transitioning();
-        }
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  transitioning() {
-    const kind = this.getAttribute("elm-animator-kind");
+  transitioning(fromContent: Node[]) {
+    const kind: Kind = this.getAttribute("elm-animator-kind") as Kind;
 
     const from = new AnimatorFrom();
     const to = this.getContent();
 
-    from.appendChild(this.animationState.content);
-    this.insertBefore(from, to);
+    fromContent.forEach(node => from.appendChild(node));
+    this.appendChild(from);
 
-    from.style.display = "inline-block";
-    to.style.display = "inline-block";
+    from.style.gridArea = "content";
+    to.style.gridArea = "content";
 
     switch (kind) {
-      case "SlideInFromTop":
+      case "SlideFromLeft":
+        this.slideInFromLeft(from, to);
+        break;
+
+      case "SlideFromRight":
+        this.slideInFromRight(from, to);
+        break;
+
+      case "SlideFromTop":
         this.slideInFromTop(from, to);
+        break;
+
+      case "SlideFromBottom":
+        this.slideInFromBottom(from, to);
         break;
 
       case "Fade":
@@ -93,7 +75,12 @@ class Animator extends HTMLElement {
     }
   }
 
-  slideInFromTop(from: HTMLElement, to: HTMLElement) {
+  slide(
+    from: HTMLElement,
+    to: HTMLElement,
+    fromAnimation: Keyframe[],
+    toAnimation: Keyframe[]
+  ) {
     const duration = 500;
     const options: KeyframeAnimationOptions = {
       duration,
@@ -102,23 +89,51 @@ class Animator extends HTMLElement {
       easing: "ease-in-out"
     };
 
-    from.animate(
-      [{ transform: "translateY(-100%)" }, { transform: "translateY(0%)" }],
-      options
-    );
-
-    to.animate(
-      [{ transform: "translateY(-100%)" }, { transform: "translateY(0%)" }],
-      options
-    ).addEventListener("finish", () => {
+    from.animate(fromAnimation, options);
+    to.animate(toAnimation, options).addEventListener("finish", () => {
       this.removeChild(from);
       this.dispatchEvent(new Event("elmAnimatorFinish"));
+      this.observer.observe(this, observerConfig);
     });
   }
 
-  fade(from: HTMLElement, to: HTMLElement) {
-    console.log("fade");
+  slideInFromRight(from: HTMLElement, to: HTMLElement) {
+    this.slide(
+      from,
+      to,
+      [{ transform: "translateX(0%)" }, { transform: "translateX(-100%)" }],
+      [{ transform: "translateX(100%)" }, { transform: "translateX(0%)" }]
+    );
+  }
 
+  slideInFromLeft(from: HTMLElement, to: HTMLElement) {
+    this.slide(
+      from,
+      to,
+      [{ transform: "translateX(0%)" }, { transform: "translateX(100%)" }],
+      [{ transform: "translateX(-100%)" }, { transform: "translateX(0%)" }]
+    );
+  }
+
+  slideInFromTop(from: HTMLElement, to: HTMLElement) {
+    this.slide(
+      from,
+      to,
+      [{ transform: "translateY(0%)" }, { transform: "translateY(100%)" }],
+      [{ transform: "translateY(-100%)" }, { transform: "translateY(0%)" }]
+    );
+  }
+
+  slideInFromBottom(from: HTMLElement, to: HTMLElement) {
+    this.slide(
+      from,
+      to,
+      [{ transform: "translateY(0%)" }, { transform: "translateY(-100%)" }],
+      [{ transform: "translateY(100%)" }, { transform: "translateY(0%)" }]
+    );
+  }
+
+  fade(from: HTMLElement, to: HTMLElement) {
     const duration = 500;
     const options: KeyframeAnimationOptions = {
       duration,
@@ -128,12 +143,12 @@ class Animator extends HTMLElement {
     };
 
     from.animate([{ opacity: "1" }, { opacity: "0" }], options);
-
     to.animate([{ opacity: "0" }, { opacity: "1" }], options).addEventListener(
       "finish",
       () => {
         this.removeChild(from);
         this.dispatchEvent(new Event("elmAnimatorFinish"));
+        this.observer.observe(this, observerConfig);
       }
     );
   }
